@@ -76,8 +76,8 @@ public class Main {
         // TODO: build the two-line frame described in the readme and above.
         // An empty bar (checked == 0) is not the same as a 0 °C average.
         return line(firstCity, firstChecked, firstTotal, firstAverage)
-        + "\n"
-        + line(secondCity, secondChecked, secondTotal, secondAverage);
+                + "\n"
+                + line(secondCity, secondChecked, secondTotal, secondAverage);
     }
 
     /**
@@ -112,14 +112,15 @@ public class Main {
 
     // row label apumetodi rivin otsikolle
     public static String rowLabel(int checked) {
-        if(checked >= 1_000_000){
+        if (checked >= 1_000_000) {
             return String.format(Locale.ROOT, "%.1fM", checked / 1_000_000.0);
-        } 
-        if(checked > 1_000) {
+        }
+        if (checked > 1_000) {
             return (checked / 1_000) + "k";
         }
         return Integer.toString(Math.max(checked, 0));
     }
+
     // apumetodi prosentin kirjoittamissen
     public static int percent(int checked, int total) {
         // nolla tai 100 jos on väliltä otetaan arvo vain kokonaislukuna
@@ -130,7 +131,7 @@ public class Main {
         if (checked >= total) {
             return 100;
         }
-        return (int)((long)checked * 100 / total);
+        return (int) ((long) checked * 100 / total);
     }
 
     // apumetodi rivin kirjoittamiseen
@@ -139,7 +140,7 @@ public class Main {
         String filledBar = "#".repeat(filled) + "-".repeat(BAR_WIDTH - filled);
 
         return String.format(Locale.ROOT, "%-10s |%s|%5.1f°C %4s %3d%%",
-            city, filledBar, average, rowLabel(checked), percent(checked, total));
+                city, filledBar, average, rowLabel(checked), percent(checked, total));
     }
 
     /**
@@ -192,7 +193,57 @@ public class Main {
          * When both workers have finished, call join() on both. Then read
          * average() and return the final frame from showProgress.
          */
-        return "";
+
+        // tehtdään kaksi temperature workeria, jotka asetetaan omaan lampotila
+        // lähteeseensä ja niille asetetaan sen kaupungin nimi, jote ne kuvaavat
+        // ihan ensin tarvitaan Temperatur sourcet josta lukea laämpotilat
+        TemperatureSource lasPalmasSource = TemperatureData.open(TemperatureData.LAS_PALMAS, feedDelayMillis, rows);
+        TemperatureSource helsinkiSource = TemperatureData.open(TemperatureData.HELSINKI, feedDelayMillis, rows);
+
+        TemperatureWorker lasPalmas = new TemperatureWorker("Las Palmas", lasPalmasSource);
+        TemperatureWorker helsinki = new TemperatureWorker("Helsinki", helsinkiSource);
+        // säiteikä voi käynnistää nyt start-metodilla
+        lasPalmas.start();
+        helsinki.start();
+        // lämpötilojen saanti näytölle niin kauan kun säikeet ovat hengissä
+        // ensimmäinen frame on merkittävä, koska lopuksi halutaan tietää onko while
+        // silmukassa käyty
+        boolean firstFrame = true;
+        // säikeelle on komento/metodi isalive mistä voi tarkistaa onko säie käynnissä
+        while (lasPalmas.isAlive() || helsinki.isAlive()) {
+            draw(showProgress(
+                    lasPalmas.getCity(), lasPalmas.checked,
+                    lasPalmasSource.size(), lasPalmas.runningAverage,
+                    helsinki.getCity(), helsinki.checked,
+                    helsinkiSource.size(), helsinki.runningAverage),
+                    firstFrame
+                );
+                firstFrame = false;
+                Thread.sleep(redrawDelayMillis);
+        }
+        // kun säikeet valmistuneet eli alive ei ole enää totta
+        // joinataan säikeet takaisin tähän
+        lasPalmas.join();
+        helsinki.join();
+
+        String finalFrame = showProgress(
+            lasPalmas.getCity(), lasPalmas.checked, lasPalmasSource.size(), lasPalmas.average(),
+            helsinki.getCity(), helsinki.checked, helsinkiSource.size(), helsinki.average()
+        );
+        draw(finalFrame, firstFrame);
+        return finalFrame;
+    }
+
+    public static void draw(String frame, boolean firstFrame) {
+        StringBuilder out = new StringBuilder();
+        if (!firstFrame) {
+            out.append("\033[2A\r");
+        }
+        for (String line : frame.split("\n")) {
+            out.append(line).append("\033[K\n");
+        }
+        System.out.println(out);
+        System.out.flush();
     }
 
     /**
