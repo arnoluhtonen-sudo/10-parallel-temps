@@ -1,6 +1,7 @@
 package temps;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Draws two ASCII temperature bars while Las Palmas and Helsinki temperatures
@@ -74,7 +75,9 @@ public class Main {
             String secondCity, int secondChecked, int secondTotal, double secondAverage) {
         // TODO: build the two-line frame described in the readme and above.
         // An empty bar (checked == 0) is not the same as a 0 °C average.
-        return "";
+        return line(firstCity, firstChecked, firstTotal, firstAverage)
+        + "\n"
+        + line(secondCity, secondChecked, secondTotal, secondAverage);
     }
 
     /**
@@ -105,6 +108,38 @@ public class Main {
             return BAR_WIDTH;
         }
         return filled;
+    }
+
+    // row label apumetodi rivin otsikolle
+    public static String rowLabel(int checked) {
+        if(checked >= 1_000_000){
+            return String.format(Locale.ROOT, "%.1fM", checked / 1_000_000.0);
+        } 
+        if(checked > 1_000) {
+            return (checked / 1_000) + "k";
+        }
+        return Integer.toString(Math.max(checked, 0));
+    }
+    // apumetodi prosentin kirjoittamissen
+    public static int percent(int checked, int total) {
+        // nolla tai 100 jos on väliltä otetaan arvo vain kokonaislukuna
+        // truncate desimaalit pois eli ei pyöristystä
+        if (total <= 0 || checked <= 0) {
+            return 0;
+        }
+        if (checked >= total) {
+            return 100;
+        }
+        return (int)((long)checked * 100 / total);
+    }
+
+    // apumetodi rivin kirjoittamiseen
+    private static String line(String city, int checked, int total, double average) {
+        int filled = checked <= 0 ? 0 : temperatureBarLength(average);
+        String filledBar = "#".repeat(filled) + "-".repeat(BAR_WIDTH - filled);
+
+        return String.format(Locale.ROOT, "%-10s |%s|%5.1f°C %4s %3d%%",
+            city, filledBar, average, rowLabel(checked), percent(checked, total));
     }
 
     /**
